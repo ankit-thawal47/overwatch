@@ -8,20 +8,21 @@
 ```
 
 <p align="center">
-  <strong>A local command centre for Claude Code — built for developers who run many sessions.</strong>
+  <strong>A local command centre for Claude Code and Codex — built for developers who run many sessions.</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=flat-square&logo=python&logoColor=white" />
   <img src="https://img.shields.io/badge/react-18-61dafb?style=flat-square&logo=react&logoColor=white" />
   <img src="https://img.shields.io/badge/fastapi-latest-009688?style=flat-square&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/codex-supported-8b5cf6?style=flat-square" />
   <img src="https://img.shields.io/badge/no_cloud-local_only-22c55e?style=flat-square" />
   <img src="https://img.shields.io/badge/license-MIT-orange?style=flat-square" />
 </p>
 
 ---
 
-Overwatch is a real-time web dashboard that sits on top of your Claude Code installation. It reads your local session files, watches for changes as Claude works, and gives you a clean terminal-aesthetic UI to browse, monitor, and interact with every session — from your laptop or from your phone on the same network.
+Overwatch is a real-time web dashboard for **Claude Code** and **Codex** sessions. It reads your local session files, watches for changes as your agent works, and gives you a clean terminal-aesthetic UI to browse, monitor, and interact with every session — from your laptop or from your phone on the same network.
 
 No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 
@@ -30,20 +31,20 @@ No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 ## Features
 
 **Session Management**
-- Browse all Claude Code and Codex sessions across every project
+- Browse all **Claude Code** and **Codex** sessions across every project in one unified view
 - Real-time status: see which sessions are active, idle, or archived
 - Full conversation view with syntax-highlighted code blocks and tool use cards
-- Filter by time range (24h / 7d / archive), agent type, and project
+- Filter by time range (24h / 7d / archive), agent type (Claude / Codex), and project
 - Search across sessions, messages, branches, and project names
 
 **Live Monitoring**
 - WebSocket-powered updates — new messages appear instantly, no refresh needed
-- Active session ticker shows what Claude is doing right now (which tool, which file)
+- Active session ticker shows what your agent is doing right now (which tool, which file)
 - Port scanner: see every dev server running on your machine, matched to their project
 
 **Send Messages Remotely**
-- Type a message from the Overwatch UI directly into a running Claude session via tmux
-- Telegram bot integration — send messages to Claude from your phone, anywhere (UPCOMING)
+- Type a message from the Overwatch UI directly into a running Claude or Codex session via tmux
+- Telegram bot integration — send messages to your agent from your phone, anywhere (UPCOMING)
 - Access Overwatch from any device on your local network with a 4-digit PIN
 
 **Project Intelligence**
@@ -61,24 +62,18 @@ No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 
 ## Quick Start
 
-**Prerequisites:** Python 3.12+, Node.js 18+, [uv](https://github.com/astral-sh/uv), tmux (optional, for send-message)
+You need **Python 3.12+** and **Node.js 18+** installed. That's it.
 
 ```bash
 git clone https://github.com/ankit-thawal47/overwatch
 cd overwatch
-
-make install   # install Python deps + npm packages
-make dev       # start backend :8080 + frontend :5173
+./setup.sh   # installs uv + all dependencies automatically
+make dev     # starts backend :8080 + frontend :5173
 ```
 
 Open [http://localhost:5173](http://localhost:5173) — your sessions appear automatically.
 
-### Production (single process)
-
-```bash
-cd frontend && npm run build   # compile React → frontend/dist/
-overwatch                      # serves everything from :8080, opens browser
-```
+> `setup.sh` will auto-install [uv](https://github.com/astral-sh/uv) (Python package manager) if you don't have it. No other tools required.
 
 ---
 
@@ -214,9 +209,9 @@ PRs welcome. Keep it local-first, no new cloud dependencies.
 
 ## Why Overwatch?
 
-Claude Code is powerful but opaque — you kick off sessions, switch contexts, and quickly lose track of what's running where, what it's doing, and how much context you've burned. Overwatch gives you a single pane of glass for all of it.
+Claude Code and Codex are powerful but opaque — you kick off sessions, switch contexts, and quickly lose track of what's running where, what it's doing, and how much context you've burned. Overwatch gives you a single pane of glass for all of it, across both agents at once.
 
-Built for developers who live in the terminal and run Claude Code seriously.
+Built for developers who live in the terminal and run AI coding agents seriously.
 
 ---
 
