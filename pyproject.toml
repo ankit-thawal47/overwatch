@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "overwatch-app"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "watchfiles",
+  "psutil",
+  "python-multipart",
+  "httpx",
+]
+
+[project.scripts]
+overwatch = "sessions.main:start"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sessions"]
