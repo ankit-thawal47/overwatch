@@ -42,11 +42,37 @@ export default function SessionCard({ session, activity, onCopyResume, selected 
   const [loadingBrief, setLoadingBrief] = useState(false)
 
   const preview = session.last_user_message || session.last_assistant_message || ''
+
+  const categoryColor: Record<string, string> = {
+    coding:       '#22c55e',
+    debugging:    '#ef4444',
+    feature:      '#3b82f6',
+    refactoring:  '#a855f7',
+    testing:      '#14b8a6',
+    exploration:  '#eab308',
+    planning:     '#6366f1',
+    delegation:   '#ec4899',
+    git:          '#6b7f6b',
+    build:        '#f97316',
+    brainstorming:'#8b5cf6',
+    conversation: '#6b7280',
+    general:      '#6b7280',
+  }
+
+  const catColor = session.dominant_category ? (categoryColor[session.dominant_category] ?? '#6b7280') : null
+
+  const oneShotColor = session.one_shot_rate == null ? null
+    : session.one_shot_rate >= 0.9 ? '#22c55e'
+    : session.one_shot_rate >= 0.6 ? '#f59e0b'
+    : '#ef4444'
   const shortPath = session.project_path.replace(/^\/Users\/[^/]+/, '~')
   const tokens = session.usage.total_tokens
   const tokLabel = tokens >= 1_000_000
     ? `${(tokens / 1_000_000).toFixed(1)}M`
     : tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : null
+
+  const allInput = session.usage.input_tokens + session.usage.cache_creation_tokens + session.usage.cache_read_tokens
+  const cacheHit = allInput > 500 ? Math.round(session.usage.cache_read_tokens / allInput * 100) : null
 
   const toolLine = session.tool_names_used.slice(0, 5).join(' · ')
     + (session.tool_names_used.length > 5 ? ` +${session.tool_names_used.length - 5}` : '')
@@ -149,10 +175,35 @@ export default function SessionCard({ session, activity, onCopyResume, selected 
             <span className="text-[#92400e]/80 text-[10px] font-mono shrink-0">{tokLabel}</span>
           </>
         )}
+        {cacheHit !== null && cacheHit > 0 && (
+          <>
+            <span className="text-[#2a2a2a] text-[10px] font-mono shrink-0">·</span>
+            <span className="text-[#1d4e3a] text-[10px] font-mono shrink-0" title="Cache hit rate">cache {cacheHit}%</span>
+          </>
+        )}
         {toolLine && (
           <>
             <span className="text-[#2a2a2a] text-[10px] font-mono shrink-0">·</span>
             <span className="text-[#2d3748] text-[10px] font-mono truncate">{toolLine}</span>
+          </>
+        )}
+        {catColor && session.dominant_category && (
+          <>
+            <span className="text-[#2a2a2a] text-[10px] font-mono shrink-0">·</span>
+            <span
+              className="text-[10px] font-mono px-1 py-0.5 rounded shrink-0"
+              style={{ color: catColor, backgroundColor: `${catColor}18` }}
+            >
+              {session.dominant_category}
+            </span>
+          </>
+        )}
+        {oneShotColor && session.one_shot_rate != null && (
+          <>
+            <span className="text-[#2a2a2a] text-[10px] font-mono shrink-0">·</span>
+            <span className="text-[10px] font-mono shrink-0" style={{ color: oneShotColor }}>
+              1-shot {Math.round(session.one_shot_rate * 100)}%
+            </span>
           </>
         )}
         {preview && !activity?.tool && (

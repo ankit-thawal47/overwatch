@@ -48,3 +48,7 @@ htmlcov/
 # Misc
 bench_results/
 *.tmp
+
+
+codeburn
+/codeburnVsOverwatch.md

@@ -13,6 +13,7 @@ export interface Message {
   content: string
   timestamp: string | null
   tool_uses: ToolUse[]
+  category?: string
 }
 
 export interface TokenUsage {
@@ -41,6 +42,9 @@ export interface Session {
   tool_names_used: string[]
   agent: 'claude' | 'codex'
   usage: TokenUsage
+  dominant_category?: string
+  one_shot_rate?: number
+  retry_count?: number
 }
 
 export interface SessionBrief {
@@ -88,6 +92,34 @@ export interface Project {
   git_branch: string | null
   worktree_count: number
   agent: 'claude' | 'codex'
+}
+
+export interface McpServer {
+  name: string
+  session_count: number
+  is_configured: boolean
+  is_ghost: boolean
+}
+
+export interface McpUsage {
+  servers: McpServer[]
+  configured_count: number
+  ghost_count: number
+  tokens_wasted_per_session: number
+  sessions_analyzed: number
+}
+
+export interface ContextBudget {
+  system_base_tokens: number
+  mcp_server_count: number
+  mcp_tokens: number
+  skill_count: number
+  skill_tokens: number
+  claude_md_count: number
+  claude_md_tokens: number
+  total_tokens: number
+  context_window: number
+  percent_used: number
 }
 
 export interface Port {
@@ -219,6 +251,12 @@ export const api = {
 
   // Heatmap
   getProjectHeatmap: (id: string) => req<ProjectHeatmap>(`/projects/${encodeURIComponent(id)}/heatmap`),
+
+  // Context budget
+  getContextBudget: (id: string) => req<ContextBudget>(`/projects/${encodeURIComponent(id)}/context-budget`),
+
+  // MCP usage
+  getMcpUsage: (id: string) => req<McpUsage>(`/projects/${encodeURIComponent(id)}/mcp-usage`),
 
   // Ports
   listPorts: () => req<Port[]>('/ports'),

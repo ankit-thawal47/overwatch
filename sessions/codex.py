@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from .models import Project, Session, Message, ToolUse, SessionBrief, HeatmapFile, ProjectHeatmap, TokenUsage
+from .classifier import classify as _classify
 
 CODEX_DIR = Path.home() / ".codex"
 STATE_DB = CODEX_DIR / "state_5.sqlite"
@@ -107,6 +108,10 @@ def list_codex_sessions(
             continue
 
         tok = row["tokens_used"] or 0
+        first_msg = (row["first_user_message"] or "")
+        dominant_category = _classify(first_msg, []) if first_msg.strip() else None
+        if dominant_category == "conversation":
+            dominant_category = None
         sessions.append(Session(
             id=row["id"],
             project_id=pid,
@@ -117,13 +122,14 @@ def list_codex_sessions(
             message_count=0,
             user_message_count=0,
             assistant_message_count=0,
-            last_user_message=(row["first_user_message"] or "")[:120] or None,
+            last_user_message=first_msg[:120] or None,
             last_assistant_message=None,
             status=s,  # type: ignore[arg-type]
             git_branch=row["git_branch"] or None,
             tool_names_used=[],
             agent="codex",
             usage=TokenUsage(total_tokens=tok),
+            dominant_category=dominant_category,
         ))
 
     return sessions[offset:offset + limit]
@@ -147,6 +153,10 @@ def get_codex_session(session_id: str) -> Optional[Session]:
     cwd = row["cwd"] or ""
     pid = "codex:" + cwd.replace("/", "-").lstrip("-")
     tok = row["tokens_used"] or 0
+    first_msg = (row["first_user_message"] or "")
+    dominant_category = _classify(first_msg, []) if first_msg.strip() else None
+    if dominant_category == "conversation":
+        dominant_category = None
     return Session(
         id=row["id"],
         project_id=pid,
@@ -157,13 +167,14 @@ def get_codex_session(session_id: str) -> Optional[Session]:
         message_count=0,
         user_message_count=0,
         assistant_message_count=0,
-        last_user_message=(row["first_user_message"] or "")[:120] or None,
+        last_user_message=first_msg[:120] or None,
         last_assistant_message=None,
         status=s,  # type: ignore[arg-type]
         git_branch=row["git_branch"] or None,
         tool_names_used=[],
         agent="codex",
         usage=TokenUsage(total_tokens=tok),
+        dominant_category=dominant_category,
     )
 
 

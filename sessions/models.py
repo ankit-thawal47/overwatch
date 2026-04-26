@@ -19,6 +19,7 @@ class Message(BaseModel):
     content: str
     timestamp: datetime | None
     tool_uses: list[ToolUse]
+    category: str | None = None
 
 
 class TokenUsage(BaseModel):
@@ -47,6 +48,9 @@ class Session(BaseModel):
     tool_names_used: list[str]
     agent: Literal["claude", "codex"] = "claude"
     usage: TokenUsage = TokenUsage()
+    dominant_category: str | None = None
+    one_shot_rate: float | None = None
+    retry_count: int = 0
 
 
 class Project(BaseModel):

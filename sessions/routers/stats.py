@@ -28,7 +28,7 @@ async def get_server_info(request: Request):
     client_host = request.client.host if request.client else ""
     # Only expose the token to localhost (the owner's own browser)
     token = ACCESS_TOKEN if client_host in _LOCALHOST else None
-    return {"ip": _local_ip(), "token": token}
+    return {"ip": _local_ip(), "hostname": socket.gethostname(), "token": token}
 
 
 @router.get("/stats", response_model=GlobalStats)

@@ -22,6 +22,12 @@
 
 ---
 
+<p align="center">
+  <video src="demo.mov" autoplay loop muted playsinline width="100%"></video>
+</p>
+
+---
+
 Overwatch is a real-time web dashboard for **Claude Code** and **Codex** sessions. It reads your local session files, watches for changes as your agent works, and gives you a clean terminal-aesthetic UI to browse, monitor, and interact with every session — from your laptop or from your phone on the same network.
 
 No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
@@ -34,7 +40,8 @@ No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 - Browse all **Claude Code** and **Codex** sessions across every project in one unified view
 - Real-time status: see which sessions are active, idle, or archived
 - Full conversation view with syntax-highlighted code blocks and tool use cards
-- Filter by time range (24h / 7d / archive), agent type (Claude / Codex), and project
+- Filter by time window (24h / 7d / 30d / all), agent type (Claude / Codex), and project
+- Sort by recency or **heavy** mode (most tokens consumed first)
 - Search across sessions, messages, branches, and project names
 
 **Live Monitoring**
@@ -44,11 +51,18 @@ No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 
 **Send Messages Remotely**
 - Type a message from the Overwatch UI directly into a running Claude or Codex session via tmux
-- Telegram bot integration — send messages to your agent from your phone, anywhere (UPCOMING)
+- Telegram bot integration — send messages to your agent from your phone, anywhere
 - Access Overwatch from any device on your local network with a 4-digit PIN
 
+**Session Analytics**
+- **Category badges** — every session is auto-labelled: `coding` `debugging` `feature` `refactoring` `testing` `exploration` `planning` and more, inferred from conversation content and tools used. Activity row shows category distribution across your filtered view
+- **One-shot rate** — detects edit→test→re-edit retry loops and shows session quality as a percentage (only shown when statistically meaningful, ≥5 edit turns)
+- **Cache hit rate** — shows what percentage of Claude input tokens were served from prompt cache (Claude sessions only)
+- **Context Budget** — per-project breakdown of how many tokens MCP servers, skills, and CLAUDE.md files consume before any real work begins
+- **MCP ghost detection** — flags configured MCP servers that are never actually used, and estimates tokens wasted per session
+
 **Project Intelligence**
-- Session Brief: AI-generated summary of files edited, commands run, and open questions
+- Session Brief: summary of files edited, commands run, and open questions — ready to paste when resuming
 - Heat Map: visualise which files get touched most across sessions (churn detection)
 - Git worktree management — create and delete worktrees without leaving the UI
 
@@ -57,6 +71,7 @@ No cloud. No telemetry. No accounts. Runs entirely on `localhost`.
 - Keyboard navigation: `j/k` to move, `/` to search, `Enter` to open
 - Copy resume command in one click: `cd /project && claude --continue <uuid>`
 - Mobile responsive — works on phone browsers on the same WiFi
+- Built-in **Guide** page explaining every feature, session card field, and integration
 
 ---
 
@@ -132,14 +147,20 @@ Two-process in dev, single process in production.
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  │
 │  │ claude.py   │  │ watcher.py   │  │  ports.py  │  │
 │  │ parses JSONL│  │ watchfiles + │  │  psutil    │  │
-│  │ sessions    │  │ WS broadcast │  │  scanner   │  │
+│  │ + analytics │  │ WS broadcast │  │  scanner   │  │
 │  └─────────────┘  └──────────────┘  └────────────┘  │
 │                                                      │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  │
-│  │  tmux.py    │  │  codex.py    │  │ telegram.py│  │
-│  │ send-keys   │  │ SQLite +     │  │ long-poll  │  │
-│  │ integration │  │ JSONL parser │  │ bot        │  │
+│  │ classifier  │  │  codex.py    │  │ telegram.py│  │
+│  │ category +  │  │ SQLite +     │  │ long-poll  │  │
+│  │ one-shot    │  │ JSONL parser │  │ bot        │  │
 │  └─────────────┘  └──────────────┘  └────────────┘  │
+│                                                      │
+│  ┌─────────────┐  ┌──────────────┐                  │
+│  │  tmux.py    │  │context_budget│                  │
+│  │ send-keys   │  │ MCP + skills │                  │
+│  │ integration │  │ token audit  │                  │
+│  └─────────────┘  └──────────────┘                  │
 └─────────────────────────────────────────────────────┘
                         │ reads
 ┌───────────────────────▼─────────────────────────────┐
@@ -147,20 +168,6 @@ Two-process in dev, single process in production.
 │          ~/.codex/state_5.sqlite                     │
 └─────────────────────────────────────────────────────┘
 ```
-
-### Backend modules
-
-| File | Purpose |
-|------|---------|
-| `sessions/main.py` | FastAPI app, auth middleware, WebSocket endpoint |
-| `sessions/claude.py` | Parse `~/.claude/projects/` JSONL files |
-| `sessions/codex.py` | Parse Codex SQLite + JSONL sessions |
-| `sessions/watcher.py` | Filesystem watcher + port poller, WS broadcaster |
-| `sessions/tmux.py` | tmux pane discovery + `send-keys` |
-| `sessions/ports.py` | psutil port scanning + project matching |
-| `sessions/worktrees.py` | git worktree operations |
-| `sessions/telegram.py` | Telegram bot via long-polling |
-| `sessions/routers/` | FastAPI routers: projects, sessions, ports, worktrees, stats |
 
 ---
 
@@ -187,26 +194,6 @@ No config file required. Everything works out of the box.
 
 ---
 
-## Contributing
-
-```bash
-# Backend syntax check
-python3 -m compileall sessions
-
-# Frontend type check
-cd frontend && ./node_modules/.bin/tsc --noEmit
-
-# Frontend lint
-cd frontend && npm run lint
-
-# Production build
-cd frontend && npm run build
-```
-
-PRs welcome. Keep it local-first, no new cloud dependencies.
-
----
-
 ## Why Overwatch?
 
 Claude Code and Codex are powerful but opaque — you kick off sessions, switch contexts, and quickly lose track of what's running where, what it's doing, and how much context you've burned. Overwatch gives you a single pane of glass for all of it, across both agents at once.
@@ -218,3 +205,4 @@ Built for developers who live in the terminal and run AI coding agents seriously
 <p align="center">
   made with ♥ by <a href="https://www.linkedin.com/in/ankit-thawal">Ankit Thawal</a>
 </p>
+

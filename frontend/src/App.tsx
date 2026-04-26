@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import SessionDetail from './pages/SessionDetail'
 import ProjectDetail from './pages/ProjectDetail'
 import PortsPage from './pages/PortsPage'
+import GuidePage from './pages/GuidePage'
 import AuthGate from './pages/AuthGate'
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="/sessions/:id" element={<SessionDetail />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/ports" element={<PortsPage />} />
+        <Route path="/guide" element={<GuidePage />} />
       </Routes>
     </div>
   )

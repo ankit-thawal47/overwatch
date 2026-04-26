@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from .models import Project, Session, Message, ToolUse, TokenUsage, SessionBrief, HeatmapFile, ProjectHeatmap
+from .classifier import classify as _classify, EDIT_TOOLS as _EDIT_TOOLS, BASH_TOOLS as _BASH_TOOLS
 
 # Module-level cache: jsonl path str -> (mtime, Session)
 # Invalidated whenever the file's mtime changes (i.e. new messages written).
@@ -149,6 +150,10 @@ def _parse_jsonl_for_session_summary(jsonl_path: Path) -> dict:
         except json.JSONDecodeError:
             continue
 
+    # Category + one-shot tracking state
+    current_user_text = ""
+    turns: list[tuple[str, list[str]]] = []  # (user_text, tool_names_in_assistant_turn)
+
     for entry in raw_entries:
         etype = entry.get("type")
         if etype not in ("user", "assistant"):
@@ -179,11 +184,15 @@ def _parse_jsonl_for_session_summary(jsonl_path: Path) -> dict:
 
         if isinstance(blocks, str):
             text = blocks
+            turn_tools: list[str] = []
         else:
             text = "\n".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
+            turn_tools = []
             for b in blocks:
                 if isinstance(b, dict) and b.get("type") == "tool_use":
-                    tool_names.add(b.get("name", ""))
+                    tname = b.get("name", "")
+                    tool_names.add(tname)
+                    turn_tools.append(tname)
 
         message_count += 1
         if role == "user":
@@ -191,10 +200,37 @@ def _parse_jsonl_for_session_summary(jsonl_path: Path) -> dict:
             clean = _clean_user_text(text)
             if clean:
                 last_user_message = clean[:120]
+                current_user_text = clean
         elif role == "assistant":
             assistant_message_count += 1
             if text.strip():
                 last_assistant_message = text.strip()[:120]
+            turns.append((current_user_text, turn_tools))
+
+    # Compute dominant_category
+    from collections import Counter
+    categories = [_classify(txt, tools) for txt, tools in turns]
+    non_conv = [c for c in categories if c != "conversation"]
+    if non_conv:
+        dominant_category: str | None = Counter(non_conv).most_common(1)[0][0]
+    elif categories:
+        dominant_category = categories[0]
+    else:
+        dominant_category = None
+
+    # Compute one_shot_rate: detect Edit→Bash→Edit retry sequences
+    edit_turns = 0
+    retry_count = 0
+    turn_flags = [(bool(set(t) & _EDIT_TOOLS), bool(set(t) & _BASH_TOOLS)) for _, t in turns]
+    for i, (has_edit, _) in enumerate(turn_flags):
+        if has_edit:
+            edit_turns += 1
+            if i >= 2 and turn_flags[i - 1][1] and turn_flags[i - 2][0]:
+                retry_count += 1
+
+    one_shot_rate: float | None = None
+    if edit_turns >= 5:
+        one_shot_rate = round((edit_turns - retry_count) / edit_turns, 3)
 
     total_tokens = total_input + total_cache_creation + total_output
     usage = TokenUsage(
@@ -215,6 +251,9 @@ def _parse_jsonl_for_session_summary(jsonl_path: Path) -> dict:
         "tool_names_used": sorted(tool_names),
         "first_timestamp": first_timestamp,
         "usage": usage,
+        "dominant_category": dominant_category,
+        "one_shot_rate": one_shot_rate,
+        "retry_count": retry_count,
     }
 
 
@@ -262,6 +301,9 @@ def _session_from_path(
         git_branch=resolved_branch,
         tool_names_used=summary["tool_names_used"],
         usage=summary["usage"],
+        dominant_category=summary["dominant_category"],
+        one_shot_rate=summary["one_shot_rate"],
+        retry_count=summary["retry_count"],
     )
 
     _session_cache[cache_key] = (mtime, session)
@@ -736,6 +778,10 @@ def parse_session_messages(path: Path) -> list[Message]:
                 for b in blocks if isinstance(b, dict) and b.get("type") == "tool_use"
             ]
 
+        msg_category: str | None = None
+        if role == "assistant" and tool_uses_list:
+            msg_category = _classify("", [tu.tool for tu in tool_uses_list])
+
         messages.append(Message(
             id=str(i),
             session_id=path.stem,
@@ -743,6 +789,7 @@ def parse_session_messages(path: Path) -> list[Message]:
             content=text,
             timestamp=ts,
             tool_uses=tool_uses_list,
+            category=msg_category,
         ))
 
     return messages

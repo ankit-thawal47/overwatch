@@ -142,9 +142,14 @@ export default function MessageBubble({ message, hideTools = false }: Props) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] uppercase tracking-widest font-mono text-[#4b5563]">claude</span>
-          {message.timestamp && (
-            <span className="text-[10px] text-[#4b5563] font-mono">{formatTime(message.timestamp)}</span>
-          )}
+          <div className="flex items-center gap-2">
+            {message.category && message.category !== 'conversation' && (
+              <span className="text-[10px] font-mono text-[#374151]">{message.category}</span>
+            )}
+            {message.timestamp && (
+              <span className="text-[10px] text-[#4b5563] font-mono">{formatTime(message.timestamp)}</span>
+            )}
+          </div>
         </div>
 
         {message.content && (

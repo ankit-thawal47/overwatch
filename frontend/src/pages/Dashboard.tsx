@@ -7,8 +7,64 @@ import SessionRow from '../components/SessionRow'
 import PortBar from '../components/PortBar'
 import PulseWave from '../components/PulseWave'
 
-type Tab = '24h' | '7d' | 'archive'
+type Tab = '24h' | '7d' | '30d' | 'all'
 type AgentFilter = 'all' | 'claude' | 'codex'
+
+function heatBarColor(pct: number): string {
+  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t)
+  if (pct <= 0.5) {
+    const t = pct / 0.5
+    return `rgb(${lerp(59, 249, t)},${lerp(130, 115, t)},${lerp(246, 22, t)})`
+  }
+  const t = (pct - 0.5) / 0.5
+  return `rgb(${lerp(249, 239, t)},${lerp(115, 68, t)},${lerp(22, 68, t)})`
+}
+
+const CATEGORY_COLOR: Record<string, string> = {
+  coding:        '#22c55e',
+  debugging:     '#ef4444',
+  feature:       '#3b82f6',
+  refactoring:   '#a855f7',
+  testing:       '#14b8a6',
+  exploration:   '#eab308',
+  planning:      '#6366f1',
+  delegation:    '#ec4899',
+  git:           '#6b7f6b',
+  build:         '#f97316',
+  brainstorming: '#8b5cf6',
+  conversation:  '#6b7280',
+  general:       '#6b7280',
+}
+
+function ActivitySparkline({ sessions }: { sessions: Session[] }) {
+  const today = new Date()
+  const days = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() - (29 - i))
+    const key = d.toISOString().slice(0, 10)
+    const count = sessions.filter(s => s.last_active_at.slice(0, 10) === key).length
+    return { key, count, label: d.toLocaleDateString([], { month: 'numeric', day: 'numeric' }) }
+  })
+  const max = Math.max(...days.map(d => d.count), 1)
+  if (sessions.length === 0) return null
+  return (
+    <div className="flex items-end gap-px" style={{ width: 120, height: 16 }}>
+      {days.map(({ key, count, label }) => (
+        <div
+          key={key}
+          className="rounded-sm"
+          style={{
+            width: 3,
+            height: `${count > 0 ? Math.max(2, Math.round((count / max) * 14)) : 1}px`,
+            backgroundColor: count > 0 ? heatBarColor(count / max) : '#1e1e1e',
+            flexShrink: 0,
+          }}
+          title={`${label}: ${count} session${count !== 1 ? 's' : ''}`}
+        />
+      ))}
+    </div>
+  )
+}
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -30,27 +86,21 @@ export default function Dashboard() {
   const [stats, setStats] = useState<GlobalStats | null>(null)
   const [serverAddr, setServerAddr] = useState<string | null>(null)
   const [serverToken, setServerToken] = useState<string | null>(null)
+  const [hostname, setHostname] = useState<string | null>(null)
   const [addrCopied, setAddrCopied] = useState(false)
   const [activityMap, setActivityMap] = useState<Record<string, { tool: string | null; summary: string }>>({})
   const [selectedIdx, setSelectedIdx] = useState(-1)
   const [groupByProject, setGroupByProject] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'compact'>('card')
+  const [sortMode, setSortMode] = useState<'recent' | 'heavy'>('recent')
   const searchRef = useRef<HTMLInputElement>(null)
   const debouncedSearch = useDebounce(search, 150)
 
   const tabCounts = {
-    '24h': sessions.filter((s) => {
-      const diff = Date.now() - new Date(s.last_active_at).getTime()
-      return diff < 24 * 60 * 60 * 1000
-    }).length,
-    '7d': sessions.filter((s) => {
-      const diff = Date.now() - new Date(s.last_active_at).getTime()
-      return diff >= 24 * 60 * 60 * 1000 && diff < 7 * 24 * 60 * 60 * 1000
-    }).length,
-    archive: sessions.filter((s) => {
-      const diff = Date.now() - new Date(s.last_active_at).getTime()
-      return diff >= 7 * 24 * 60 * 60 * 1000
-    }).length,
+    '24h':  sessions.filter(s => Date.now() - new Date(s.last_active_at).getTime() < 24 * 60 * 60 * 1000).length,
+    '7d':   sessions.filter(s => Date.now() - new Date(s.last_active_at).getTime() < 7 * 24 * 60 * 60 * 1000).length,
+    '30d':  sessions.filter(s => Date.now() - new Date(s.last_active_at).getTime() < 30 * 24 * 60 * 60 * 1000).length,
+    'all':  sessions.length,
   }
 
   const load = useCallback(() => {
@@ -67,6 +117,7 @@ export default function Dashboard() {
       .then(d => {
         setServerAddr(`${d.ip}:${window.location.port || '80'}`)
         if (d.token) setServerToken(d.token)
+        if (d.hostname) setHostname(d.hostname)
       })
       .catch(() => {})
   }, [])
@@ -102,10 +153,12 @@ export default function Dashboard() {
     .filter((s) => {
       const diff = now - new Date(s.last_active_at).getTime()
       if (tab === '24h') return diff < 24 * 60 * 60 * 1000
-      if (tab === '7d') return diff >= 24 * 60 * 60 * 1000 && diff < 7 * 24 * 60 * 60 * 1000
-      return diff >= 7 * 24 * 60 * 60 * 1000
+      if (tab === '7d') return diff < 7 * 24 * 60 * 60 * 1000
+      if (tab === '30d') return diff < 30 * 24 * 60 * 60 * 1000
+      return true
     })
     .filter((s) => agentFilter === 'all' || s.agent === agentFilter)
+    .sort((a, b) => sortMode === 'heavy' ? b.usage.total_tokens - a.usage.total_tokens : 0)
     .filter((s) => {
       if (!debouncedSearch) return true
       const q = debouncedSearch.toLowerCase()
@@ -185,7 +238,8 @@ export default function Dashboard() {
   const tabLabels: { key: Tab; label: string }[] = [
     { key: '24h', label: '24h' },
     { key: '7d', label: '7d' },
-    { key: 'archive', label: 'Archive' },
+    { key: '30d', label: '30d' },
+    { key: 'all', label: 'all' },
   ]
 
   const activeSessions = sessions.filter(s => s.status === 'active')
@@ -210,6 +264,16 @@ export default function Dashboard() {
   const flatFiltered = groupByProject
     ? grouped.flatMap(g => g.sessions)
     : filtered
+
+  const catCounts = filtered.reduce<Record<string, { count: number; totalOneShot: number; oneShotN: number }>>((acc, s) => {
+    if (!s.dominant_category) return acc
+    const c = acc[s.dominant_category] ?? { count: 0, totalOneShot: 0, oneShotN: 0 }
+    c.count++
+    if (s.one_shot_rate != null) { c.totalOneShot += s.one_shot_rate; c.oneShotN++ }
+    acc[s.dominant_category] = c
+    return acc
+  }, {})
+  const catList = Object.entries(catCounts).sort((a, b) => b[1].count - a[1].count)
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-16">
@@ -242,6 +306,12 @@ export default function Dashboard() {
           )}
 
           <div className="flex-1" />
+
+          {hostname && (
+            <span className="hidden sm:block font-mono text-[10px] text-[#4a5568] shrink-0">
+              {hostname}
+            </span>
+          )}
 
           {serverAddr && (
             <button
@@ -333,6 +403,21 @@ export default function Dashboard() {
                 ports
               </Link>
               <div className="w-px h-3 bg-[#1e1e1e] mx-1 shrink-0" />
+              <Link
+                to="/guide"
+                className="text-[11px] font-mono px-2.5 py-2 text-[#78450a] hover:text-[#f59e0b] transition-colors border-b-2 border-transparent -mb-px"
+              >
+                guide
+              </Link>
+              <div className="w-px h-3 bg-[#1e1e1e] mx-1 shrink-0" />
+              <button
+                onClick={() => setSortMode(m => m === 'recent' ? 'heavy' : 'recent')}
+                className={`text-[11px] font-mono px-2.5 py-2 transition-colors border-b-2 -mb-px ${
+                  sortMode === 'heavy' ? 'text-[#f0f0f0] border-[#3a3a3a]' : 'text-[#5a6a7a] border-transparent hover:text-[#9ca3af]'
+                }`}
+              >
+                heavy
+              </button>
               <button
                 onClick={() => setGroupByProject(g => !g)}
                 className={`text-[11px] font-mono px-2.5 py-2 transition-colors border-b-2 -mb-px ${
@@ -397,7 +482,29 @@ export default function Dashboard() {
           </div>
         )}
 
+        {catList.length > 0 && !loading && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <span className="text-[10px] font-mono text-[#374151] uppercase tracking-widest">activity</span>
+            <span className="text-[#2a2a2a] font-mono text-[10px]">·</span>
+            {catList.map(([cat, { count, totalOneShot, oneShotN }]) => {
+              const color = CATEGORY_COLOR[cat] ?? '#6b7280'
+              const avgOneShot = oneShotN > 0 ? Math.round((totalOneShot / oneShotN) * 100) : null
+              return (
+                <span
+                  key={cat}
+                  className="text-[10px] font-mono px-2 py-0.5 rounded cursor-default"
+                  style={{ color, backgroundColor: `${color}15` }}
+                  title={avgOneShot != null ? `avg 1-shot: ${avgOneShot}%` : undefined}
+                >
+                  {cat} <span style={{ opacity: 0.5 }}>{count}</span>
+                </span>
+              )
+            })}
+          </div>
+        )}
+
         {loading ? (
+
           <div className="py-16 flex justify-center">
             <pre className="text-[#2a2a2a] text-xs font-mono leading-snug select-none">{
 `╔══════════════════════╗
